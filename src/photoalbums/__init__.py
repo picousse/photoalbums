@@ -57,7 +57,8 @@ def main() -> None:
     p.add_argument("--force", action="store_true", help="overwrite an existing (possibly edited) plan")
     p.add_argument("--format", default="25x20")
     p.add_argument("--title", help="optional title page at the start of the book")
-    p.add_argument("--pages", type=int, help="aim for roughly this many pages")
+    p.add_argument("--pages", type=int, help="aim for at most this many pages")
+    p.add_argument("--lang", default="nl", choices=["nl", "en"], help="language of dates on title pages")
     p.add_argument("--burst-seconds", type=float, default=2.0, help="drop shots taken closer together")
 
     r = sub.add_parser("render", help="render a book plan to PDF")
@@ -137,7 +138,7 @@ def main() -> None:
             print(f"using {len(photos)} photos from {selection_path}")
         if not photos:
             sys.exit(f"No photos found in {photos_dir}.")
-        plan = build_plan(photos, photos_dir, FORMATS[args.format], args.title, args.pages, args.burst_seconds)
+        plan = build_plan(photos, photos_dir, FORMATS[args.format], args.title, args.pages, args.burst_seconds, args.lang)
         write_plan(plan, out)
         n_pages = sum(len(s["pages"]) + 1 for s in plan["sections"]) + bool(args.title)
         kept = sum(len(pg["photos"]) for s in plan["sections"] for pg in s["pages"])

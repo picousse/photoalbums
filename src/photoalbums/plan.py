@@ -35,7 +35,7 @@ def sections(photos: list[Photo]) -> list[tuple[str | None, list[Photo]]]:
 
     merged: list[tuple[str | None, list[Photo]]] = []
     for city, group in days:
-        if merged and (city is None or city == merged[-1][0]):
+        if merged and city == merged[-1][0]:  # days without a city group together
             merged[-1][1].extend(group)
         else:
             merged.append((city, list(group)))
@@ -71,14 +71,21 @@ def paginate(photos: list[Photo], fmt: BookFormat, density: float) -> list[dict]
     return pages
 
 
-def date_range(start: date, end: date) -> str:
+MONTHS = {
+    "nl": "januari februari maart april mei juni juli augustus september oktober november december".split(),
+    "en": "January February March April May June July August September October November December".split(),
+}
+
+
+def date_range(start: date, end: date, lang: str = "nl") -> str:
+    month = lambda d: MONTHS[lang][d.month - 1]  # noqa: E731
     if start == end:
-        return f"{start.day} {start:%B %Y}"
+        return f"{start.day} {month(start)} {start.year}"
     if (start.year, start.month) == (end.year, end.month):
-        return f"{start.day} – {end.day} {end:%B %Y}"
+        return f"{start.day} – {end.day} {month(end)} {end.year}"
     if start.year == end.year:
-        return f"{start.day} {start:%B} – {end.day} {end:%B %Y}"
-    return f"{start.day} {start:%B %Y} – {end.day} {end:%B %Y}"
+        return f"{start.day} {month(start)} – {end.day} {month(end)} {end.year}"
+    return f"{start.day} {month(start)} {start.year} – {end.day} {month(end)} {end.year}"
 
 
 def build_plan(
@@ -88,26 +95,34 @@ def build_plan(
     title: str | None,
     target_pages: int | None,
     burst_seconds: float,
+    lang: str = "nl",
 ) -> dict:
     photos = drop_bursts(photos, burst_seconds)
     groups = sections(photos)
+    def sections_for(density: float) -> list[dict]:
+        return [
+            {
+                "title": city or f"{MONTHS[lang][group[0].taken.month - 1]} {group[0].taken.year}",
+                "subtitle": date_range(group[0].taken.date(), group[-1].taken.date(), lang),
+                "pages": paginate(group, fmt, density),
+            }
+            for city, group in groups
+        ]
+
+    fixed_pages = len(groups) + (1 if title else 0)  # title pages
+    density = DEFAULT_DENSITY
     if target_pages:
-        photo_pages = max(1, target_pages - len(groups) - (1 if title else 0))
-        density = max(1.0, len(photos) / photo_pages)
-    else:
-        density = DEFAULT_DENSITY
+        density = max(1.0, len(photos) / max(1, target_pages - fixed_pages))
+    result = sections_for(density)
+    # The layout picker doesn't hit the density exactly: tighten until it fits.
+    while target_pages and density < 4 and fixed_pages + sum(len(s["pages"]) for s in result) > target_pages:
+        density += 0.1
+        result = sections_for(density)
 
     plan: dict = {"format": fmt.name, "photos_dir": str(photos_dir.resolve())}
     if title:
         plan["title"] = title
-    plan["sections"] = [
-        {
-            "title": city or f"{group[0].taken:%B %Y}",
-            "subtitle": date_range(group[0].taken.date(), group[-1].taken.date()),
-            "pages": paginate(group, fmt, density),
-        }
-        for city, group in groups
-    ]
+    plan["sections"] = result
     return plan
 
 
