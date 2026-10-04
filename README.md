@@ -3,22 +3,25 @@
 Turns a folder of photos (e.g. a Google Photos / Takeout download) into a
 print-ready hardcover photo book PDF. Default format: 25 x 20 cm landscape.
 
-Local data lives in `data/` (gitignored): put downloaded photos in
-`data/pictures/<album>/` and keep plans and PDFs in `data/albums/<album>/`.
+Photos and books live in `data/` (gitignored):
 
-```sh
-uv run photoalbums plan data/pictures/summer -o data/albums/summer/book.yaml --title "Summer 2025" --pages 40
-uv run photoalbums render data/albums/summer/book.yaml --spreads
+```
+data/pictures/<album>/   the photos (unzipped Google Photos album download)
+data/albums/<album>/     book.yaml (the editable plan), book.pdf, book-spreads.pdf
 ```
 
-Other examples:
-
 ```sh
-uv run photoalbums plan ~/Pictures/summer -o book.yaml --title "Summer 2025" --pages 40
-# edit book.yaml: reorder photos, change layouts, rename sections, set crop focus
-uv run photoalbums render book.yaml --spreads   # book.pdf (print) + book-spreads.pdf (preview)
+uv run photoalbums new lisbon-2025      # creates both folders
+# unzip the album download into data/pictures/lisbon-2025/
+uv run photoalbums plan lisbon-2025     # options: --pages 40 --title "Lisbon" --format 25x20
+# edit data/albums/lisbon-2025/book.yaml: reorder photos, change layouts, rename sections, set crop focus
+uv run photoalbums render lisbon-2025   # book.pdf (print) + book-spreads.pdf (preview)
+uv run photoalbums list                 # albums and their status
 uv run photoalbums formats
 ```
+
+`plan` refuses to overwrite an existing `book.yaml` (it may hold your edits) unless you pass `--force`.
+`plan` and `render` also accept plain paths (a photo folder, a `book.yaml`). Set `PHOTOALBUMS_DATA` to use another data folder.
 
 What `plan` does:
 
