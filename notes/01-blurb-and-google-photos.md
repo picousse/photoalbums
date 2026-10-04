@@ -28,6 +28,8 @@ Context: we used to design photo albums ourselves and print them as hardcover bo
 
 Mini Square 5x5", Small Square 7x7", Standard Portrait 8x10", Standard Landscape 10x8", Large Square 12x12", Large Landscape 13x11".
 
+These names are rounded. Standard Landscape is really 9.5 x 8 in trim; see `02-print-providers.md` for the exact calculator values.
+
 ## Google Photos: getting the photos out
 
 API change on **31 March 2025**: the Library API's `photoslibrary.readonly`, `photoslibrary.sharing` and full `photoslibrary` scopes were removed. Calls that used them now return 403. An app can only read media **it uploaded itself**.

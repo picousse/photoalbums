@@ -43,11 +43,12 @@ FORMATS = {
         ),
         BookFormat(
             name="blurb-standard-landscape",
-            description="Blurb Standard Landscape 10x8 in. VERIFY with Blurb's size calculator before ordering",
-            trim_w=254,
+            description="Blurb Standard Landscape ('10x8'; real trim 9.5x8 in, calculator 2026-10-04)",
+            trim_w=241.3,
             trim_h=203.2,
             bleed=3.175,
             gutter_bleed=False,
+            margin=16,  # Blurb's safe zone is 0.625 in at the binding edge
         ),
     ]
 }
