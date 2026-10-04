@@ -38,14 +38,19 @@ What still works:
 
 1. **Picker API**: the user opens a Google picker and selects photos or an album for a session. The app then downloads those items. Works well for "pick the photos for this album" and is the official route.
 2. **Google Takeout**: bulk export of the whole library or chosen albums as zip files with JSON metadata sidecars (dates, GPS, descriptions). Good for a one-off or periodic offline copy. Slow and manual.
-3. **Manual download** of an album from the web UI (zip).
+3. **Album download** from the web UI (album menu → "Download all", a zip of the original files). **Simplest and usually enough.** The photos keep their embedded EXIF, including GPS when the camera/phone recorded it.
+   - Caveat: locations that Google *estimated* or that were added by hand in Google Photos aren't in the EXIF. Takeout puts those in its JSON files.
+   - Caveat: downloading many photos very fast can give reduced copies without EXIF. Check a few files.
+   - If location is missing, the tool still works: it groups by date and titles the section with the month, and you can rename it in `book.yaml`.
 
-The Library API can no longer browse the whole library, so any tool should take a **local folder of photos** as input. The Picker API or Takeout can fill that folder.
+**Recommended order:** try the album download first. Use Takeout only if many photos come out without a location.
+
+The Library API can no longer browse the whole library, so any tool should take a **local folder of photos** as input. An album download (or Takeout) fills that folder.
 
 ## Possible pipeline
 
 ```
-Google Photos --(Picker API / Takeout)--> local folder
+Google Photos --(album download / Takeout)--> local folder
    --> select & order (by date / event, drop duplicates & blurry shots)
    --> auto-layout pages (templates: 1-up, 2-up, 4-up, full-bleed spread)
    --> render interior PDF (PDF/X-3, correct trim+bleed) + cover PDF (spine from page count)
