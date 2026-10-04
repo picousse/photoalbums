@@ -1,18 +1,42 @@
 """Read photos from a folder: size, capture time and GPS location."""
 
 import json
+import re
+from bisect import bisect_left
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from PIL import Image
 from pillow_heif import register_heif_opener
 
 register_heif_opener()
+Image.MAX_IMAGE_PIXELS = None  # own photos: allow panoramas and 200 MP shots
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".tif", ".tiff"}
 EXIF_IFD, GPS_IFD = 0x8769, 0x8825
 DATETIME_ORIGINAL, DATETIME, ORIENTATION = 36867, 306, 274
+
+
+# Dates in file names, for photos without EXIF (e.g. WhatsApp strips it).
+FILENAME_DATES = [
+    (re.compile(r"(\d{8})[_-]?(\d{6})"), "%Y%m%d%H%M%S"),  # IMG20260713163632, IMG_20260707_134047
+    (re.compile(r"IMG-(\d{8})-WA(\d{4})"), None),  # WhatsApp: date + sequence number
+]
+CITY_BORROW_HOURS = 3  # photos without GPS take the city of the nearest located photo
+
+
+def _date_from_name(name: str) -> datetime | None:
+    for pattern, fmt in FILENAME_DATES:
+        if m := pattern.search(name):
+            try:
+                if fmt:
+                    return datetime.strptime(m[1] + m[2], fmt)
+                # WhatsApp only has the day; spread files over the day in send order.
+                return datetime.strptime(m[1], "%Y%m%d").replace(hour=12) + timedelta(seconds=int(m[2]))
+            except ValueError:
+                continue
+    return None
 
 
 @dataclass
@@ -83,7 +107,7 @@ def scan(folder: Path) -> list[Photo]:
                 lat, lon = geo["latitude"], geo["longitude"]
 
         if taken is None:
-            taken = datetime.fromtimestamp(path.stat().st_mtime)
+            taken = _date_from_name(path.name) or datetime.fromtimestamp(path.stat().st_mtime)
         photos.append(Photo(path.relative_to(folder), w, h, taken, lat, lon))
 
     photos.sort(key=lambda p: p.taken)
@@ -100,3 +124,15 @@ def _add_cities(photos: list[Photo]) -> None:
     results = reverse_geocoder.search([(p.lat, p.lon) for p in located], mode=1, verbose=False)
     for photo, result in zip(located, results):
         photo.city = result["name"]
+
+    # Several phones on one trip, often only one records GPS: borrow the city
+    # from the photo taken closest in time.
+    times = [p.taken for p in located]
+    for photo in photos:
+        if photo.city:
+            continue
+        i = bisect_left(times, photo.taken)
+        near = [located[j] for j in (i - 1, i) if 0 <= j < len(located)]
+        best = min(near, key=lambda q: abs(q.taken - photo.taken))
+        if abs(best.taken - photo.taken) <= timedelta(hours=CITY_BORROW_HOURS):
+            photo.city = best.city

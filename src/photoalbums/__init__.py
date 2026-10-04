@@ -41,6 +41,16 @@ def main() -> None:
 
     sub.add_parser("list", help="list albums and their status")
 
+    s = sub.add_parser("select", help="pick the best photo of each moment (sharpness, exposure, duplicates)")
+    s.add_argument("album", help="album name (data/pictures/<album>) or a photo folder path")
+    s.add_argument("--force", action="store_true", help="redo the selection, discarding edits to selection.yaml")
+    s.add_argument("--max-gap", type=float, default=180, help="seconds between shots of one moment")
+    s.add_argument("--max-distance", type=int, default=26, help="visual difference (0-64) within one moment")
+
+    d = sub.add_parser("drop", help="remove photos from the selection by contact-sheet number")
+    d.add_argument("album")
+    d.add_argument("numbers", nargs="+", help="e.g. 3 7 12-15 (numbers from the current sheets)")
+
     p = sub.add_parser("plan", help="scan an album's photos and write an editable book plan")
     p.add_argument("album", help="album name (data/pictures/<album>) or a photo folder path")
     p.add_argument("-o", "--out", type=Path, help="default: data/albums/<album>/book.yaml")
@@ -76,6 +86,36 @@ def main() -> None:
             status = "rendered" if (out_dir / "book.pdf").exists() else "planned" if (out_dir / "book.yaml").exists() else "no plan"
             print(f"{name:30} {n_files:5} files  {status}")
 
+    elif args.command == "select":
+        from .curate import analyse_all, build_selection, contact_sheets, write_selection
+        from .scan import scan
+
+        photos_dir, out_dir = resolve_photos(args.album)
+        if not photos_dir.is_dir():
+            sys.exit(f"No photo folder {photos_dir}. Create it with: uv run photoalbums new {args.album}")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        selection_path = out_dir / "selection.yaml"
+        if selection_path.exists() and not args.force:
+            selection = yaml.safe_load(selection_path.read_text())
+            print(f"{selection_path} exists; refreshing contact sheets only (use --force to redo it)")
+        else:
+            photos = scan(photos_dir)
+            metrics = analyse_all(photos, photos_dir, out_dir / ".cache")
+            selection = build_selection(photos, metrics, args.max_gap, args.max_distance)
+            write_selection(selection, selection_path)
+            kept = sum(len(m["keep"]) for m in selection["moments"])
+            print(f"{len(photos)} photos -> {len(selection['moments'])} moments, keeping {kept} -> {selection_path}")
+        sheets = contact_sheets(selection, out_dir / ".cache", out_dir / "sheets")
+        print(f"{len(sheets)} contact sheets -> {out_dir / 'sheets'}")
+
+    elif args.command == "drop":
+        from .curate import drop, parse_numbers
+
+        out_dir = ALBUMS / args.album
+        files = drop(out_dir / "selection.yaml", out_dir / "sheets", parse_numbers(args.numbers))
+        print(f"dropped {len(files)} photos (moved to alternates).")
+        print(f"Sheet numbers stay valid until you refresh them: uv run photoalbums select {args.album}")
+
     elif args.command == "plan":
         from .formats import FORMATS
         from .plan import build_plan, write_plan
@@ -89,6 +129,12 @@ def main() -> None:
             sys.exit(f"{out} already exists (and may contain your edits). Use --force to overwrite it.")
 
         photos = scan(photos_dir)
+        if (selection_path := out_dir / "selection.yaml").exists():
+            from .curate import kept_files
+
+            keep = kept_files(selection_path)
+            photos = [p for p in photos if str(p.path) in keep]
+            print(f"using {len(photos)} photos from {selection_path}")
         if not photos:
             sys.exit(f"No photos found in {photos_dir}.")
         plan = build_plan(photos, photos_dir, FORMATS[args.format], args.title, args.pages, args.burst_seconds)
