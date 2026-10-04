@@ -118,4 +118,5 @@ def write_plan(plan: dict, path: Path) -> None:
         "# A photo can also be written as {file: x.jpg, focus: [0.5, 0.3]} to steer\n"
         "# the crop (x, y from 0 to 1; default is the centre).\n"
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(header + yaml.safe_dump(plan, sort_keys=False, allow_unicode=True, width=100))
